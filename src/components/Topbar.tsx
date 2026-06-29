@@ -5,9 +5,10 @@ import { Undo2, Redo2, HelpCircle, FileDown, FileUp, Hexagon } from 'lucide-reac
 interface TopbarProps {
   onExport: () => void
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onRenderImage: () => void
 }
 
-export const Topbar: React.FC<TopbarProps> = ({ onExport, onImport }) => {
+export const Topbar: React.FC<TopbarProps> = ({ onExport, onImport, onRenderImage }) => {
   const { 
     undo, 
     redo, 
@@ -65,6 +66,24 @@ export const Topbar: React.FC<TopbarProps> = ({ onExport, onImport }) => {
         color: '#ffffff',
         intensity: type === 'sun' ? 1.0 : 5.0,
         castShadow: true,
+      }
+    })
+    setActiveMenu(null)
+  }
+
+  const handleAddCamera = () => {
+    addObject({
+      name: 'Camera',
+      type: 'camera',
+      visible: true,
+      locked: false,
+      position: [7, 6, 9],
+      rotation: [-0.5880026035475674, 0.5743692571486818, 0.3475049692541689],
+      scale: [1, 1, 1],
+      cameraConfig: {
+        fov: 35,
+        near: 0.1,
+        far: 1000,
       }
     })
     setActiveMenu(null)
@@ -162,7 +181,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onExport, onImport }) => {
           {activeMenu === 'render' && (
             <div className="absolute left-0 mt-1 w-40 bg-bg-panel border border-border shadow-lg rounded py-1 flex flex-col z-50">
               <button 
-                onClick={() => { alert("Render Image is a Phase 2 feature!"); setActiveMenu(null); }}
+                onClick={() => { onRenderImage(); setActiveMenu(null); }}
                 className="px-3 py-1 text-left hover:bg-accent-orange hover:text-white cursor-pointer"
               >
                 Render Image
@@ -196,6 +215,10 @@ export const Topbar: React.FC<TopbarProps> = ({ onExport, onImport }) => {
               <button onClick={() => handleAddLight('point', 'Point Light')} className="px-4 py-1 text-left hover:bg-accent-orange hover:text-white cursor-pointer">Point Light</button>
               <button onClick={() => handleAddLight('sun', 'Sun Light')} className="px-4 py-1 text-left hover:bg-accent-orange hover:text-white cursor-pointer">Sun Light</button>
               <button onClick={() => handleAddLight('spot', 'Spot Light')} className="px-4 py-1 text-left hover:bg-accent-orange hover:text-white cursor-pointer">Spot Light</button>
+
+              <hr className="border-border my-1" />
+              <div className="px-2 py-0.5 text-[9px] text-text-dim font-semibold uppercase tracking-wider">Add Camera</div>
+              <button onClick={handleAddCamera} className="px-4 py-1 text-left hover:bg-accent-orange hover:text-white cursor-pointer">Camera</button>
             </div>
           )}
         </div>

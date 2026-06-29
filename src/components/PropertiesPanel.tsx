@@ -21,11 +21,14 @@ const formatValue = (val: number) => {
   return floatVal.toString()
 }
 
+type TextureSlotKey = 'albedoTexture' | 'normalTexture' | 'roughnessTexture'
+
 export const PropertiesPanel: React.FC = () => {
   const { 
     objects, 
     selectedIds, 
     updateObject, 
+    addObject,
     activeTool, 
     sceneSettings, 
     updateSceneSettings,
@@ -33,7 +36,7 @@ export const PropertiesPanel: React.FC = () => {
     updateViewportSettings
   } = useSceneStore()
 
-  const [activeTab, setActiveTab] = useState<'item' | 'tool' | 'view' | 'object' | 'material' | 'light' | 'scene'>('item')
+  const [activeTab, setActiveTab] = useState<'item' | 'tool' | 'view' | 'object' | 'material' | 'light' | 'camera' | 'lighting' | 'scene'>('item')
   const [expandedSections, setExpandedSections] = useState({
     transform: true,
     material: true,
@@ -49,6 +52,7 @@ export const PropertiesPanel: React.FC = () => {
   // Determine which tabs are visible
   const isMeshSelected = selectedObj?.type === 'mesh'
   const isLightSelected = selectedObj?.type === 'light'
+  const isCameraSelected = selectedObj?.type === 'camera'
 
   // Handle value inputs safely
   const handleTransformChange = (
@@ -80,6 +84,27 @@ export const PropertiesPanel: React.FC = () => {
     })
   }
 
+  const handleTextureUpload = (slot: TextureSlotKey, file: File | null) => {
+    if (!selectedObj || !selectedObj.materialConfig || !file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result
+      if (typeof dataUrl !== 'string') return
+
+      handleMaterialChange(slot, {
+        name: file.name,
+        dataUrl,
+      })
+    }
+
+    reader.readAsDataURL(file)
+  }
+
+  const clearTexture = (slot: TextureSlotKey) => {
+    handleMaterialChange(slot, null)
+  }
+
   const handleLightChange = (key: string, val: any) => {
     if (!selectedObj || !selectedObj.lightConfig) return
     updateObject(selectedObj.id, {
@@ -95,6 +120,155 @@ export const PropertiesPanel: React.FC = () => {
     updateObject(selectedObj.id, {
       [key]: val
     })
+  }
+
+  const handleCameraChange = (key: 'fov' | 'near' | 'far', valStr: string) => {
+    if (!selectedObj || !selectedObj.cameraConfig) return
+
+    const parsedValue = parseFloat(valStr)
+    if (Number.isNaN(parsedValue)) return
+
+    let nextValue = parsedValue
+    if (key === 'fov') {
+      nextValue = Math.min(120, Math.max(10, parsedValue))
+    }
+    if (key === 'near') {
+      nextValue = Math.max(0.01, Math.min(parsedValue, selectedObj.cameraConfig.far - 0.01))
+    }
+    if (key === 'far') {
+      nextValue = Math.max(selectedObj.cameraConfig.near + 0.01, parsedValue)
+    }
+
+    updateObject(selectedObj.id, {
+      cameraConfig: {
+        ...selectedObj.cameraConfig,
+        [key]: nextValue
+      }
+    })
+  }
+
+  const pointLight = objects.find(
+    (obj) => obj.type === 'light' && obj.lightConfig?.type === 'point'
+  )
+  const sunLight = objects.find(
+    (obj) => obj.type === 'light' && obj.lightConfig?.type === 'sun'
+  )
+
+  const updateSceneLight = (lightId: string, updates: Record<string, any>) => {
+    const target = objects.find((obj) => obj.id === lightId)
+    if (!target?.lightConfig) return
+
+    updateObject(lightId, {
+      lightConfig: {
+        ...target.lightConfig,
+        ...updates,
+      }
+    })
+  }
+
+  const addLightingRigLight = (lightType: 'point' | 'sun') => {
+    addObject({
+      name: lightType === 'sun' ? 'Sun Light' : 'Point Light',
+      type: 'light',
+      visible: true,
+      locked: false,
+      position: lightType === 'sun' ? [4, 5, 4] : [-2, 3, 2],
+      rotation: lightType === 'sun' ? [-Math.PI / 4, Math.PI / 4, 0] : [0, 0, 0],
+      scale: [1, 1, 1],
+      lightConfig: {
+        type: lightType,
+        color: '#ffffff',
+        intensity: lightType === 'sun' ? 1.0 : 5.0,
+        distance: lightType === 'point' ? 10 : undefined,
+        decay: lightType === 'point' ? 2 : undefined,
+        castShadow: true,
+      }
+    })
+  }
+
+  const renderLightingSection = (
+    title: string,
+    description: string,
+    lightObj: typeof pointLight,
+    lightType: 'point' | 'sun',
+    sliderMax: number
+  ) => {
+    if (!lightObj?.lightConfig) {
+      return (
+        <div className="rounded border border-border/60 bg-bg-deep/50">
+          <div className="border-b border-border/50 px-3 py-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-text-primary">{title}</div>
+            <div className="mt-1 text-[9.5px] text-text-dim">{description}</div>
+          </div>
+          <div className="px-3 py-3">
+            <button
+              onClick={() => addLightingRigLight(lightType)}
+              className="w-full rounded border border-accent-orange/60 bg-accent-orange/10 px-2 py-1 text-[10px] font-semibold text-accent-orange transition-colors hover:bg-accent-orange/20"
+            >
+              Add {title}
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="rounded border border-border/60 bg-bg-deep/50">
+        <div className="border-b border-border/50 px-3 py-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-text-primary">{title}</div>
+          <div className="mt-1 text-[9.5px] text-text-dim">{description}</div>
+        </div>
+
+        <div className="space-y-3 px-3 py-3">
+          <div>
+            <div className="mb-1 flex items-center justify-between text-[10px]">
+              <span className="text-text-dim">Color</span>
+              <span className="font-mono text-white">{lightObj.lightConfig.color.toUpperCase()}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={lightObj.lightConfig.color}
+                onChange={(e) => updateSceneLight(lightObj.id, { color: e.target.value })}
+                className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent p-0"
+              />
+              <input
+                type="text"
+                value={lightObj.lightConfig.color}
+                onChange={(e) => updateSceneLight(lightObj.id, { color: e.target.value })}
+                className="w-full rounded border border-border bg-bg-deep px-2 py-0.5 font-mono text-[10px] text-white"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-[10px]">
+              <span className="text-text-dim">Intensity</span>
+              <span className="font-mono text-white">{Number(lightObj.lightConfig.intensity).toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max={sliderMax}
+              step="0.1"
+              value={lightObj.lightConfig.intensity}
+              onChange={(e) => updateSceneLight(lightObj.id, { intensity: parseFloat(e.target.value) })}
+              className="w-full cursor-pointer appearance-none rounded-lg bg-border accent-accent-orange"
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-text-dim">Cast Shadows</span>
+            <input
+              type="checkbox"
+              checked={lightObj.lightConfig.castShadow}
+              onChange={(e) => updateSceneLight(lightObj.id, { castShadow: e.target.checked })}
+              className="h-3.5 w-3.5 cursor-pointer rounded accent-accent-orange"
+            />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const renderTabContent = () => {
@@ -599,6 +773,64 @@ export const PropertiesPanel: React.FC = () => {
         }
         
         const mat = selectedObj.materialConfig
+
+        const renderTextureSlot = (
+          title: string,
+          slot: TextureSlotKey,
+          description: string
+        ) => {
+          const textureAsset = mat[slot]
+
+          return (
+            <div className="rounded border border-border/60 bg-bg-deep/45 p-2.5 space-y-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-semibold text-text-primary">{title}</div>
+                  <div className="text-[9.5px] text-text-dim">{description}</div>
+                </div>
+                {textureAsset && (
+                  <button
+                    onClick={() => clearTexture(slot)}
+                    className="rounded border border-border bg-bg-panel px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-text-dim transition-colors hover:text-white"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {textureAsset ? (
+                <div className="flex items-center gap-2 rounded border border-border/50 bg-bg-panel/70 p-2">
+                  <img
+                    src={textureAsset.dataUrl}
+                    alt={`${title} preview`}
+                    className="h-12 w-12 rounded border border-border object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[9px] uppercase tracking-wider text-text-dim">Preview</div>
+                    <div className="truncate font-mono text-[10px] text-white">{textureAsset.name}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded border border-dashed border-border/70 bg-bg-panel/40 px-2 py-3 text-center text-[9.5px] text-text-dim">
+                  No image loaded
+                </div>
+              )}
+
+              <label className="flex cursor-pointer items-center justify-center rounded border border-accent-blue/60 bg-accent-blue/10 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-accent-blue transition-colors hover:bg-accent-blue/20">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    handleTextureUpload(slot, e.target.files?.[0] ?? null)
+                    e.currentTarget.value = ''
+                  }}
+                />
+                {textureAsset ? 'Replace Image' : 'Upload Image'}
+              </label>
+            </div>
+          )
+        }
         
         return (
           <div className="space-y-4">
@@ -743,6 +975,30 @@ export const PropertiesPanel: React.FC = () => {
                 />
               </div>
             </div>
+
+            <div className="space-y-3 border-t border-border/40 pt-3 mt-3">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-text-primary">
+                Texture Maps
+              </div>
+
+              {renderTextureSlot(
+                'Diffuse / Albedo',
+                'albedoTexture',
+                'Base color image applied on top of the material color.'
+              )}
+
+              {renderTextureSlot(
+                'Normal Map',
+                'normalTexture',
+                'Surface detail normals for bumps and small lighting variation.'
+              )}
+
+              {renderTextureSlot(
+                'Roughness Map',
+                'roughnessTexture',
+                'Controls how glossy or matte each part of the material appears.'
+              )}
+            </div>
           </div>
         )
 
@@ -883,6 +1139,183 @@ export const PropertiesPanel: React.FC = () => {
           </div>
         )
 
+      case 'camera':
+        if (!isCameraSelected || !selectedObj || !selectedObj.cameraConfig) {
+          return <div className="text-text-dim text-center py-8 italic">Please select a camera object</div>
+        }
+
+        const cam = selectedObj.cameraConfig
+        const isActiveCameraView = viewportSettings.cameraViewId === selectedObj.id
+
+        return (
+          <div className="space-y-4">
+            <h4 className="font-semibold text-text-primary text-[10.5px] uppercase tracking-wider mb-2 border-b border-border pb-1">
+              Camera Properties
+            </h4>
+
+            <button
+              onClick={() => updateViewportSettings({ cameraViewId: isActiveCameraView ? null : selectedObj.id })}
+              className={`w-full rounded border px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                isActiveCameraView
+                  ? 'border-accent-blue bg-accent-blue/15 text-white'
+                  : 'border-accent-orange/70 bg-accent-orange/10 text-accent-orange hover:bg-accent-orange/20'
+              }`}
+            >
+              {isActiveCameraView ? 'Return To User View' : 'Look Through Camera'}
+            </button>
+
+            <div className="rounded border border-border/60 bg-bg-deep/45 p-2.5 text-[9.5px] text-text-dim">
+              {isActiveCameraView
+                ? 'Viewport is currently rendering through this camera.'
+                : 'Switch the viewport to this camera to preview framing and clipping.'}
+            </div>
+
+            <div>
+              <div className="flex justify-between mb-1 text-[10px]">
+                <span className="text-text-dim">Field Of View</span>
+                <span className="font-mono text-white">{Math.round(cam.fov)}°</span>
+              </div>
+              <input
+                type="range"
+                min="10"
+                max="120"
+                step="1"
+                value={cam.fov}
+                onChange={(e) => handleCameraChange('fov', e.target.value)}
+                className="w-full accent-accent-blue cursor-pointer h-1 bg-border rounded-lg appearance-none"
+              />
+            </div>
+
+            <div className="space-y-3 rounded border border-border/60 bg-bg-deep/45 p-3">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-text-primary">Clipping</div>
+
+              <div>
+                <div className="flex justify-between mb-1 text-[10px]">
+                  <span className="text-text-dim">Near Clip</span>
+                  <span className="font-mono text-white">{cam.near.toFixed(2)}</span>
+                </div>
+                <input
+                  type="number"
+                  min="0.01"
+                  max={Math.max(0.02, cam.far - 0.01)}
+                  step="0.01"
+                  value={cam.near}
+                  onChange={(e) => handleCameraChange('near', e.target.value)}
+                  className="w-full bg-bg-panel border border-border rounded px-2 py-1 text-white font-mono text-[10px] outline-none focus:border-accent-blue"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between mb-1 text-[10px]">
+                  <span className="text-text-dim">Far Clip</span>
+                  <span className="font-mono text-white">{Math.round(cam.far)}</span>
+                </div>
+                <input
+                  type="number"
+                  min={cam.near + 0.01}
+                  step="1"
+                  value={cam.far}
+                  onChange={(e) => handleCameraChange('far', e.target.value)}
+                  className="w-full bg-bg-panel border border-border rounded px-2 py-1 text-white font-mono text-[10px] outline-none focus:border-accent-blue"
+                />
+              </div>
+            </div>
+          </div>
+        )
+
+      case 'lighting':
+        return (
+          <div className="space-y-3">
+            <div>
+              <h4 className="mb-1 border-b border-border pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-text-primary">
+                Lighting Rig
+              </h4>
+              <p className="text-[10px] text-text-dim">
+                Control the main point, sun, and ambient lights from one panel before moving on to textures and rendering.
+              </p>
+            </div>
+
+            {renderLightingSection(
+              'Point Light',
+              'Local light source for highlights and shorter-range shading.',
+              pointLight,
+              'point',
+              50
+            )}
+
+            {renderLightingSection(
+              'Sun Light',
+              'Directional scene light for broad illumination and primary shadow casting.',
+              sunLight,
+              'sun',
+              5
+            )}
+
+            <div className="rounded border border-border/60 bg-bg-deep/50">
+              <div className="border-b border-border/50 px-3 py-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-text-primary">Ambient Light</div>
+                <div className="mt-1 text-[9.5px] text-text-dim">
+                  Global fill light applied evenly across the scene.
+                </div>
+              </div>
+
+              <div className="space-y-3 px-3 py-3">
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-[10px]">
+                    <span className="text-text-dim">Color</span>
+                    <span className="font-mono text-white">{sceneSettings.ambientColor.toUpperCase()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={sceneSettings.ambientColor}
+                      onChange={(e) => updateSceneSettings({ ambientColor: e.target.value })}
+                      className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent p-0"
+                    />
+                    <input
+                      type="text"
+                      value={sceneSettings.ambientColor}
+                      onChange={(e) => updateSceneSettings({ ambientColor: e.target.value })}
+                      className="w-full rounded border border-border bg-bg-deep px-2 py-0.5 font-mono text-[10px] text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-[10px]">
+                    <span className="text-text-dim">Intensity</span>
+                    <span className="font-mono text-white">{Number(sceneSettings.ambientIntensity).toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="2"
+                    step="0.05"
+                    value={sceneSettings.ambientIntensity}
+                    onChange={(e) => updateSceneSettings({ ambientIntensity: parseFloat(e.target.value) })}
+                    className="w-full cursor-pointer appearance-none rounded-lg bg-border accent-accent-orange"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-text-dim">Cast Shadows</span>
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    disabled
+                    className="h-3.5 w-3.5 cursor-not-allowed rounded accent-accent-orange"
+                    title="Ambient light in Three.js is non-directional and does not cast shadows."
+                  />
+                </div>
+
+                <div className="rounded border border-border/40 bg-bg-panel/60 px-2 py-1 text-[9.5px] text-text-dim">
+                  Ambient light is non-directional, so shadow casting is unavailable. Point and sun shadows are fully toggleable above.
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+
       case 'scene':
         return (
           <div className="space-y-4">
@@ -1019,7 +1452,9 @@ export const PropertiesPanel: React.FC = () => {
     { id: 'item', title: 'Properties', icon: MousePointer },
     { id: 'object', title: 'Object Properties', icon: Box },
     ...(isMeshSelected ? [{ id: 'material', title: 'Material Properties', icon: Palette }] : []),
+    { id: 'lighting', title: 'Lighting Rig', icon: Lightbulb },
     ...(isLightSelected ? [{ id: 'light', title: 'Light Properties', icon: Lightbulb }] : []),
+    ...(isCameraSelected ? [{ id: 'camera', title: 'Camera Properties', icon: Camera }] : []),
     { id: 'scene', title: 'Environment settings', icon: Globe },
     { id: 'view', title: 'Viewport options', icon: Camera },
   ] as const

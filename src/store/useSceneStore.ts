@@ -1,5 +1,10 @@
 import { create } from 'zustand'
 
+export interface TextureAsset {
+  name: string
+  dataUrl: string
+}
+
 export interface MaterialConfig {
   color: string
   metalness: number
@@ -9,6 +14,9 @@ export interface MaterialConfig {
   wireframe: boolean
   emissive: string
   emissiveIntensity: number
+  albedoTexture?: TextureAsset | null
+  normalTexture?: TextureAsset | null
+  roughnessTexture?: TextureAsset | null
 }
 
 export interface LightConfig {
@@ -20,6 +28,12 @@ export interface LightConfig {
   angle?: number
   penumbra?: number
   castShadow: boolean
+}
+
+export interface CameraConfig {
+  fov: number
+  near: number
+  far: number
 }
 
 export interface SceneObject {
@@ -35,6 +49,7 @@ export interface SceneObject {
   geometryParams?: any // parameters like radius, etc.
   materialConfig?: MaterialConfig
   lightConfig?: LightConfig
+  cameraConfig?: CameraConfig
   
   // Custom shape draw path
   shapeVertices?: [number, number][] // [x, z] coordinates for Extrude
@@ -50,6 +65,7 @@ export interface ViewportSettings {
   showGrid: boolean
   showGizmo: boolean
   showOverlays: boolean
+  cameraViewId: string | null
 }
 
 export interface SceneSettings {
@@ -61,6 +77,11 @@ export interface SceneSettings {
   ambientIntensity: number
 }
 
+export interface RenderPreview {
+  dataUrl: string
+  createdAt: number
+}
+
 interface SceneState {
   objects: SceneObject[]
   selectedIds: string[]
@@ -69,6 +90,7 @@ interface SceneState {
   editSubMode: 'vertex' | 'edge' | 'face'
   viewportSettings: ViewportSettings
   sceneSettings: SceneSettings
+  lastRenderPreview: RenderPreview | null
   
   // Actions
   addObject: (obj: Omit<SceneObject, 'id'>) => void
@@ -83,6 +105,7 @@ interface SceneState {
   setActiveTool: (tool: 'select' | 'move' | 'rotate' | 'scale' | 'shape-draw') => void
   updateViewportSettings: (settings: Partial<ViewportSettings>) => void
   updateSceneSettings: (settings: Partial<SceneSettings>) => void
+  setLastRenderPreview: (preview: RenderPreview | null) => void
   
   // History
   history: SceneObject[][]
@@ -101,6 +124,9 @@ const defaultMaterial: MaterialConfig = {
   wireframe: false,
   emissive: '#000000',
   emissiveIntensity: 1.0,
+  albedoTexture: null,
+  normalTexture: null,
+  roughnessTexture: null,
 }
 
 const defaultLight = (type: 'point' | 'sun' | 'spot' | 'area'): LightConfig => ({
@@ -113,6 +139,12 @@ const defaultLight = (type: 'point' | 'sun' | 'spot' | 'area'): LightConfig => (
   penumbra: type === 'spot' ? 0.5 : undefined,
   castShadow: true,
 })
+
+const defaultCamera: CameraConfig = {
+  fov: 35,
+  near: 0.1,
+  far: 1000,
+}
 
 // Helper to generate unique names
 const generateUniqueName = (baseName: string, objects: SceneObject[]) => {
@@ -168,8 +200,9 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       visible: true,
       locked: false,
       position: [7, 6, 9],
-      rotation: [0, 0, 0],
+      rotation: [-0.5880026035475674, 0.5743692571486818, 0.3475049692541689],
       scale: [1, 1, 1],
+      cameraConfig: { ...defaultCamera },
     }
   ],
   selectedIds: ['default-cube'], // select default cube by default
@@ -181,6 +214,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     showGrid: true,
     showGizmo: true,
     showOverlays: true,
+    cameraViewId: null,
   },
   sceneSettings: {
     backgroundColor: '#1E1E1E',
@@ -190,6 +224,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     ambientColor: '#FFFFFF',
     ambientIntensity: 1.0,
   },
+  lastRenderPreview: null,
   history: [],
   historyIndex: -1,
 
@@ -250,6 +285,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       scale: objInput.scale ?? [1, 1, 1],
       materialConfig: objInput.type === 'mesh' ? (objInput.materialConfig || { ...defaultMaterial }) : undefined,
       lightConfig: objInput.type === 'light' ? (objInput.lightConfig || defaultLight((objInput.lightConfig as any)?.type || 'point')) : undefined,
+      cameraConfig: objInput.type === 'camera' ? (objInput.cameraConfig || { ...defaultCamera }) : undefined,
     }
 
     const nextObjects = [...get().objects, newObj]
@@ -284,6 +320,9 @@ export const useSceneStore = create<SceneState>((set, get) => ({
         }
         if (updates.lightConfig) {
           updatedObj.lightConfig = { ...obj.lightConfig!, ...updates.lightConfig }
+        }
+        if (updates.cameraConfig) {
+          updatedObj.cameraConfig = { ...obj.cameraConfig!, ...updates.cameraConfig }
         }
         return updatedObj
       }
@@ -381,7 +420,9 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     set(state => ({
       sceneSettings: { ...state.sceneSettings, ...settings }
     }))
-  }
+  },
+
+  setLastRenderPreview: (lastRenderPreview) => set({ lastRenderPreview })
 }))
 
 // Push the initial layout to history

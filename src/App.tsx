@@ -4,6 +4,7 @@ import { Toolbar } from './components/Toolbar'
 import { Viewport } from './components/Viewport'
 import { Outliner } from './components/Outliner'
 import { PropertiesPanel } from './components/PropertiesPanel'
+import { RenderPreviewPanel } from './components/RenderPreviewPanel'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 
 function App() {
@@ -22,10 +23,14 @@ function App() {
     }
   }
 
+  const handleRenderImage = () => {
+    window.dispatchEvent(new CustomEvent('render-image'))
+  }
+
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-bg-deep text-text-primary">
       {/* Topbar spans the entire width of the screen */}
-      <Topbar onExport={handleExportScene} onImport={handleImportFile} />
+      <Topbar onExport={handleExportScene} onImport={handleImportFile} onRenderImage={handleRenderImage} />
 
       {/* Main Container below Topbar */}
       <div className="flex-1 flex flex-row min-h-0 w-full overflow-hidden">
@@ -39,13 +44,18 @@ function App() {
 
           {/* Right side panels: stacked Outliner & Properties (N-Panel) */}
           <div className="w-60 border-l border-border flex flex-col h-full min-h-0 bg-bg-panel">
-            {/* Top segment: Scene graph / Outliner (35%) */}
-            <div className="h-[35%] min-h-[150px] flex flex-col min-h-0">
+            {/* Top segment: Scene graph / Outliner */}
+            <div className="h-[30%] min-h-[140px] flex flex-col min-h-0">
               <Outliner />
             </div>
 
-            {/* Bottom segment: Object properties tab panel (65%) */}
-            <div className="h-[65%] min-h-[250px] border-t border-border flex flex-col min-h-0 overflow-hidden">
+            {/* Middle segment: latest render preview */}
+            <div className="h-[24%] min-h-[150px] border-t border-border flex flex-col min-h-0 overflow-hidden">
+              <RenderPreviewPanel />
+            </div>
+
+            {/* Bottom segment: Object properties tab panel */}
+            <div className="flex-1 min-h-[250px] border-t border-border flex flex-col min-h-0 overflow-hidden">
               <PropertiesPanel />
             </div>
           </div>

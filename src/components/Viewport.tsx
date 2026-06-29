@@ -12,6 +12,179 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { useSceneStore } from '../store/useSceneStore'
 import { Eye, Compass } from 'lucide-react'
 
+const lightIconTextureCache = new Map<string, THREE.CanvasTexture>()
+const cameraIconTextureCache = new Map<string, THREE.CanvasTexture>()
+const materialTextureCache = new Map<string, THREE.Texture>()
+
+const getLightIconTexture = (lightType: 'point' | 'sun' | 'spot') => {
+  const cachedTexture = lightIconTextureCache.get(lightType)
+  if (cachedTexture) return cachedTexture
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+
+  if (!ctx) {
+    const fallbackTexture = new THREE.CanvasTexture(canvas)
+    lightIconTextureCache.set(lightType, fallbackTexture)
+    return fallbackTexture
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.strokeStyle = '#ffffff'
+  ctx.fillStyle = '#ffffff'
+  ctx.lineWidth = 4
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  if (lightType === 'sun') {
+    ctx.beginPath()
+    ctx.arc(32, 32, 10, 0, Math.PI * 2)
+    ctx.stroke()
+
+    for (let index = 0; index < 8; index += 1) {
+      const angle = (Math.PI * 2 * index) / 8
+      const innerRadius = 16
+      const outerRadius = 26
+
+      ctx.beginPath()
+      ctx.moveTo(32 + Math.cos(angle) * innerRadius, 32 + Math.sin(angle) * innerRadius)
+      ctx.lineTo(32 + Math.cos(angle) * outerRadius, 32 + Math.sin(angle) * outerRadius)
+      ctx.stroke()
+    }
+  } else if (lightType === 'spot') {
+    ctx.beginPath()
+    ctx.moveTo(20, 14)
+    ctx.lineTo(44, 14)
+    ctx.lineTo(36, 32)
+    ctx.lineTo(36, 48)
+    ctx.lineTo(28, 48)
+    ctx.lineTo(28, 32)
+    ctx.closePath()
+    ctx.stroke()
+
+    ctx.beginPath()
+    ctx.moveTo(20, 18)
+    ctx.lineTo(44, 18)
+    ctx.stroke()
+  } else {
+    ctx.beginPath()
+    ctx.arc(32, 32, 12, 0, Math.PI * 2)
+    ctx.stroke()
+
+    for (let index = 0; index < 4; index += 1) {
+      const angle = (Math.PI * 2 * index) / 4
+      ctx.beginPath()
+      ctx.moveTo(32 + Math.cos(angle) * 18, 32 + Math.sin(angle) * 18)
+      ctx.lineTo(32 + Math.cos(angle) * 26, 32 + Math.sin(angle) * 26)
+      ctx.stroke()
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.needsUpdate = true
+  lightIconTextureCache.set(lightType, texture)
+  return texture
+}
+
+const createLightIconSprite = (lightType: 'point' | 'sun' | 'spot', color: string) => {
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: getLightIconTexture(lightType),
+      color: new THREE.Color(color),
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+    })
+  )
+
+  const iconScale = lightType === 'sun' ? 0.5 : lightType === 'spot' ? 0.44 : 0.4
+  sprite.scale.set(iconScale, iconScale, 1)
+  sprite.renderOrder = 10
+  sprite.name = `${lightType}-light-icon`
+  return sprite
+}
+
+const getCameraIconTexture = () => {
+  const cachedTexture = cameraIconTextureCache.get('camera')
+  if (cachedTexture) return cachedTexture
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+
+  if (!ctx) {
+    const fallbackTexture = new THREE.CanvasTexture(canvas)
+    cameraIconTextureCache.set('camera', fallbackTexture)
+    return fallbackTexture
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 4
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  ctx.beginPath()
+  ctx.roundRect(16, 22, 24, 18, 4)
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.moveTo(40, 26)
+  ctx.lineTo(50, 20)
+  ctx.lineTo(50, 42)
+  ctx.lineTo(40, 36)
+  ctx.closePath()
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.arc(28, 31, 5, 0, Math.PI * 2)
+  ctx.stroke()
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.needsUpdate = true
+  cameraIconTextureCache.set('camera', texture)
+  return texture
+}
+
+const createCameraIconSprite = () => {
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: getCameraIconTexture(),
+      color: new THREE.Color('#a9cdfd'),
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+    })
+  )
+
+  sprite.scale.set(0.48, 0.48, 1)
+  sprite.renderOrder = 10
+  sprite.name = 'camera-icon'
+  return sprite
+}
+
+const getMaterialTexture = (
+  asset: { dataUrl: string } | null | undefined,
+  colorSpace: THREE.ColorSpace
+) => {
+  if (!asset?.dataUrl) return null
+
+  const cacheKey = `${colorSpace}|${asset.dataUrl}`
+  const cachedTexture = materialTextureCache.get(cacheKey)
+  if (cachedTexture) return cachedTexture
+
+  const texture = new THREE.TextureLoader().load(asset.dataUrl)
+  texture.colorSpace = colorSpace
+  texture.needsUpdate = true
+  materialTextureCache.set(cacheKey, texture)
+  return texture
+}
+
 export const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null)
   
@@ -27,6 +200,7 @@ export const Viewport: React.FC = () => {
     deselectAll,
     updateObject,
     addObject,
+    setLastRenderPreview,
     setMode,
     setEditSubMode,
     updateViewportSettings
@@ -34,6 +208,7 @@ export const Viewport: React.FC = () => {
 
   // Keep references to Three.js elements
   const sceneRef = useRef<THREE.Scene | null>(null)
+  const editorCameraRef = useRef<THREE.PerspectiveCamera | THREE.OrthographicCamera | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | THREE.OrthographicCamera | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const controlsRef = useRef<OrbitControls | null>(null)
@@ -98,6 +273,31 @@ export const Viewport: React.FC = () => {
   useEffect(() => {
     viewportSettingsRef.current = viewportSettings
   }, [viewportSettings])
+
+  const getViewportAspect = () => {
+    const width = containerRef.current?.clientWidth ?? 800
+    const height = containerRef.current?.clientHeight ?? 600
+    return width / Math.max(height, 1)
+  }
+
+  const setActiveViewportCamera = (nextCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera) => {
+    cameraRef.current = nextCamera
+
+    const controls = controlsRef.current
+    if (controls) {
+      controls.object = nextCamera
+    }
+
+    const transformControls = transformControlsRef.current
+    if (transformControls) {
+      ;(transformControls as unknown as { camera: THREE.Camera }).camera = nextCamera
+    }
+
+    const outlinePass = outlinePassRef.current
+    if (outlinePass) {
+      ;(outlinePass as unknown as { renderCamera: THREE.Camera }).renderCamera = nextCamera
+    }
+  }
 
   // --- EDIT MODE HELPERS: wireframe overlay + vertex points ---
   useEffect(() => {
@@ -171,13 +371,15 @@ export const Viewport: React.FC = () => {
     // Camera
     const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000)
     camera.position.set(7, 6, 9)
+    camera.lookAt(0, 0, 0)
+    editorCameraRef.current = camera
     cameraRef.current = camera
 
     // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
     renderer.setSize(width, height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    renderer.shadowMap.enabled = false
+    renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFShadowMap
     containerRef.current.appendChild(renderer.domElement)
     rendererRef.current = renderer
@@ -195,6 +397,16 @@ export const Viewport: React.FC = () => {
     gridHelper.position.y = 0
     gridHelper.name = 'floor-grid'
     scene.add(gridHelper)
+
+    const shadowCatcher = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200),
+      new THREE.ShadowMaterial({ opacity: 0.22 })
+    )
+    shadowCatcher.rotation.x = -Math.PI / 2
+    shadowCatcher.position.y = -0.001
+    shadowCatcher.receiveShadow = true
+    shadowCatcher.name = 'shadow-catcher'
+    scene.add(shadowCatcher)
 
     // Axes Helper
     const axesHelper = new THREE.AxesHelper(5)
@@ -225,7 +437,7 @@ export const Viewport: React.FC = () => {
     // Transform Controls
     const transformControls = new TransformControls(camera, renderer.domElement)
     transformControls.size = 0.75
-    transformControls.addEventListener('change', () => renderer.render(scene, camera))
+    transformControls.addEventListener('change', () => renderer.render(scene, cameraRef.current ?? camera))
     transformControls.addEventListener('dragging-changed', (event) => {
       controls.enabled = !event.value
     })
@@ -299,7 +511,7 @@ export const Viewport: React.FC = () => {
 
       // Always render via renderer to ensure objects are visible.
       // Composer (OutlinePass) can fail in some environments; use it as overlay only.
-      renderer.render(scene, camera)
+      renderer.render(scene, cameraRef.current ?? camera)
     }
     animate()
 
@@ -313,6 +525,19 @@ export const Viewport: React.FC = () => {
         cameraRef.current.aspect = w / h
         cameraRef.current.updateProjectionMatrix()
       }
+
+      sceneObjectsMapRef.current.forEach((obj) => {
+        const sceneCamera = obj.userData.camera
+        const cameraHelper = obj.userData.helper
+        if (sceneCamera instanceof THREE.PerspectiveCamera) {
+          sceneCamera.aspect = w / h
+          sceneCamera.updateProjectionMatrix()
+          if (cameraHelper instanceof THREE.CameraHelper) {
+            cameraHelper.update()
+          }
+        }
+      })
+
       rendererRef.current.setSize(w, h)
       composerRef.current.setSize(w, h)
     }
@@ -354,6 +579,45 @@ export const Viewport: React.FC = () => {
     }
   }, [sceneSettings])
 
+  useEffect(() => {
+    if (!rendererRef.current) return
+
+    const hasShadowCastingLight = objects.some(
+      (obj) => obj.type === 'light' && obj.visible && obj.lightConfig?.castShadow
+    )
+
+    rendererRef.current.shadowMap.enabled = hasShadowCastingLight
+    rendererRef.current.shadowMap.needsUpdate = true
+  }, [objects])
+
+  useEffect(() => {
+    const controls = controlsRef.current
+    const targetCameraId = viewportSettings.cameraViewId
+
+    if (!controls) return
+
+    if (targetCameraId) {
+      const cameraGroup = sceneObjectsMapRef.current.get(targetCameraId)
+      const sceneCamera = cameraGroup?.userData.camera
+
+      if (sceneCamera instanceof THREE.PerspectiveCamera) {
+        sceneCamera.aspect = getViewportAspect()
+        sceneCamera.updateProjectionMatrix()
+        setActiveViewportCamera(sceneCamera)
+        controls.enabled = false
+        return
+      }
+
+      updateViewportSettings({ cameraViewId: null })
+      return
+    }
+
+    if (editorCameraRef.current) {
+      setActiveViewportCamera(editorCameraRef.current)
+    }
+    controls.enabled = true
+  }, [viewportSettings.cameraViewId, objects, sceneVersion])
+
   // --- REBUILD SCENE OBJECTS WHEN STATE STORES UPDATES ---
   useEffect(() => {
     const scene = sceneRef.current
@@ -389,6 +653,7 @@ export const Viewport: React.FC = () => {
       if (threeObj) {
         const cachedType = threeObj.userData.type
         const cachedGeoType = threeObj.userData.geometryType
+        const cachedLightType = threeObj.userData.lightType
         const cachedExtrudeDepth = threeObj.userData.extrudeDepth
         const cachedBevelEnabled = threeObj.userData.bevelEnabled
         const cachedBevelThickness = threeObj.userData.bevelThickness
@@ -398,6 +663,7 @@ export const Viewport: React.FC = () => {
         if (
           cachedType !== obj.type ||
           cachedGeoType !== obj.geometryType ||
+          cachedLightType !== obj.lightConfig?.type ||
           cachedExtrudeDepth !== obj.extrudeDepth ||
           cachedBevelEnabled !== obj.bevelEnabled ||
           cachedBevelThickness !== obj.bevelThickness ||
@@ -477,7 +743,10 @@ export const Viewport: React.FC = () => {
             transparent: false,
             wireframe: false,
             emissive: '#000000',
-            emissiveIntensity: 1.0
+            emissiveIntensity: 1.0,
+            albedoTexture: null,
+            normalTexture: null,
+            roughnessTexture: null,
           }
 
           const material = new THREE.MeshStandardMaterial({
@@ -488,7 +757,10 @@ export const Viewport: React.FC = () => {
             transparent: mat.transparent,
             wireframe: mat.wireframe,
             emissive: new THREE.Color(mat.emissive),
-            emissiveIntensity: mat.emissiveIntensity
+            emissiveIntensity: mat.emissiveIntensity,
+            map: getMaterialTexture(mat.albedoTexture, THREE.SRGBColorSpace),
+            normalMap: getMaterialTexture(mat.normalTexture, THREE.NoColorSpace),
+            roughnessMap: getMaterialTexture(mat.roughnessTexture, THREE.NoColorSpace),
           })
 
           threeObj = new THREE.Mesh(geometry, material)
@@ -528,41 +800,67 @@ export const Viewport: React.FC = () => {
           light.castShadow = lgt.castShadow
           ;(light as any).shadow.mapSize.width = 1024
           ;(light as any).shadow.mapSize.height = 1024
-          
-          // Visual helper representation for light sources in viewport
+
+          if (light instanceof THREE.DirectionalLight) {
+            light.shadow.camera.left = -12
+            light.shadow.camera.right = 12
+            light.shadow.camera.top = 12
+            light.shadow.camera.bottom = -12
+            light.shadow.camera.near = 0.5
+            light.shadow.camera.far = 40
+            light.shadow.bias = -0.0002
+          }
+
+          if (light instanceof THREE.PointLight || light instanceof THREE.SpotLight) {
+            const shadowCamera = light.shadow.camera as THREE.PerspectiveCamera
+            shadowCamera.near = 0.5
+            shadowCamera.far = lgt.distance ?? 20
+            light.shadow.bias = -0.0002
+          }
+
+          // Viewport icon representation for light sources
           const lightGroup = new THREE.Group()
           lightGroup.add(light)
 
-          // Add simple visual wireframe sphere helper for point lights, cone for spot
-          let helper: THREE.Object3D
-          if (lgt.type === 'sun') {
-            helper = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8),
-              new THREE.MeshBasicMaterial({ color: '#ffcc00', wireframe: true })
-            )
-            helper.rotation.x = Math.PI / 2
-          } else if (lgt.type === 'spot') {
-            helper = new THREE.Mesh(
-              new THREE.ConeGeometry(0.25, 0.5, 8),
-              new THREE.MeshBasicMaterial({ color: '#ffffff', wireframe: true })
-            )
-            helper.rotation.x = Math.PI / 2
-          } else {
-            helper = new THREE.Mesh(
-              new THREE.SphereGeometry(0.15, 8, 8),
-              new THREE.MeshBasicMaterial({ color: '#ffcc00', wireframe: true })
-            )
-          }
+          const helperType = lgt.type === 'sun' ? 'sun' : lgt.type === 'spot' ? 'spot' : 'point'
+          const helper = createLightIconSprite(helperType, lgt.color)
+          helper.visible = viewportSettings.showOverlays
           lightGroup.add(helper)
           threeObj = lightGroup
+        }
+        else if (obj.type === 'camera' && obj.cameraConfig) {
+          const cameraGroup = new THREE.Group()
+          const sceneCamera = new THREE.PerspectiveCamera(
+            obj.cameraConfig.fov,
+            getViewportAspect(),
+            obj.cameraConfig.near,
+            obj.cameraConfig.far
+          )
+          sceneCamera.visible = false
+
+          const cameraHelper = new THREE.CameraHelper(sceneCamera)
+          cameraHelper.visible = viewportSettings.showOverlays
+
+          const cameraIcon = createCameraIconSprite()
+          cameraIcon.visible = viewportSettings.showOverlays
+
+          cameraGroup.add(sceneCamera)
+          cameraGroup.add(cameraHelper)
+          cameraGroup.add(cameraIcon)
+          cameraGroup.userData.camera = sceneCamera
+          cameraGroup.userData.helper = cameraHelper
+          cameraGroup.userData.icon = cameraIcon
+          threeObj = cameraGroup
         }
 
         if (threeObj) {
           threeObj.name = obj.id
           // Save metadata
           threeObj.userData = {
+            ...threeObj.userData,
             type: obj.type,
             geometryType: obj.geometryType,
+            lightType: obj.lightConfig?.type,
             extrudeDepth: obj.extrudeDepth,
             bevelEnabled: obj.bevelEnabled,
             bevelThickness: obj.bevelThickness,
@@ -607,6 +905,9 @@ export const Viewport: React.FC = () => {
               if ('roughness' in threeMat) {
                 (threeMat as any).roughness = mat.roughness
               }
+              ;(threeMat as THREE.MeshStandardMaterial).map = getMaterialTexture(mat.albedoTexture, THREE.SRGBColorSpace)
+              ;(threeMat as THREE.MeshStandardMaterial).normalMap = getMaterialTexture(mat.normalTexture, THREE.NoColorSpace)
+              ;(threeMat as THREE.MeshStandardMaterial).roughnessMap = getMaterialTexture(mat.roughnessTexture, THREE.NoColorSpace)
               threeMat.opacity = mat.opacity
               threeMat.transparent = mat.transparent
               threeMat.wireframe = viewportSettings.shadingMode === 'wireframe' || mat.wireframe
@@ -617,6 +918,7 @@ export const Viewport: React.FC = () => {
               
               // Solid mode: use actual material color (no clay override)
               threeMat.wireframe = viewportSettings.shadingMode === 'wireframe' || mat.wireframe
+              threeMat.needsUpdate = true
             }
           } catch (err) {
             console.error("Error updating material for object:", obj.name, "ID:", obj.id, "Error:", err, "Material:", threeObj.material)
@@ -633,11 +935,41 @@ export const Viewport: React.FC = () => {
             lightObj.castShadow = lgt.castShadow
             if (lightObj instanceof THREE.PointLight || lightObj instanceof THREE.SpotLight) {
               lightObj.distance = lgt.distance ?? 10
+              ;(lightObj.shadow.camera as THREE.PerspectiveCamera).far = lgt.distance ?? 10
             }
             if (lightObj instanceof THREE.SpotLight) {
               lightObj.angle = lgt.angle ?? Math.PI / 6
               lightObj.penumbra = lgt.penumbra ?? 0.5
             }
+
+            const helperObj = threeObj.children[1]
+            if (helperObj instanceof THREE.Sprite) {
+              helperObj.material.color.set(lgt.color)
+              helperObj.visible = viewportSettings.showOverlays
+            }
+          }
+        }
+
+        if (obj.type === 'camera' && obj.cameraConfig) {
+          const sceneCamera = threeObj.userData.camera
+          const cameraHelper = threeObj.userData.helper
+          const cameraIcon = threeObj.userData.icon
+
+          if (sceneCamera instanceof THREE.PerspectiveCamera) {
+            sceneCamera.fov = obj.cameraConfig.fov
+            sceneCamera.near = obj.cameraConfig.near
+            sceneCamera.far = obj.cameraConfig.far
+            sceneCamera.aspect = getViewportAspect()
+            sceneCamera.updateProjectionMatrix()
+          }
+
+          if (cameraHelper instanceof THREE.CameraHelper) {
+            cameraHelper.visible = viewportSettings.showOverlays
+            cameraHelper.update()
+          }
+
+          if (cameraIcon instanceof THREE.Sprite) {
+            cameraIcon.visible = viewportSettings.showOverlays
           }
         }
 
@@ -647,7 +979,7 @@ export const Viewport: React.FC = () => {
 
     sceneObjectsMapRef.current = nextMap
     console.log("Current Three.js scene children after rebuild:", scene.children.map(c => ({ name: c.name, type: c.type, visible: c.visible })))
-  }, [objects, viewportSettings.shadingMode, sceneVersion])
+  }, [objects, viewportSettings.shadingMode, viewportSettings.showOverlays, sceneVersion])
 
   // --- RESPOND TO SELECTION & GIZMO PLACEMENT ---
   useEffect(() => {
@@ -676,7 +1008,7 @@ export const Viewport: React.FC = () => {
       if (o) {
         // Outline Pass needs meshes. For lights (which are groups), highlight their child helpers
         if (o instanceof THREE.Group) {
-          outlineObjects.push(...o.children)
+          outlineObjects.push(...o.children.filter((child) => !(child instanceof THREE.Camera)))
         } else {
           outlineObjects.push(o)
         }
@@ -688,6 +1020,7 @@ export const Viewport: React.FC = () => {
   // --- RESPOND TO WINDOW CUSTOM EVENTS (KEYBOARD COMMANDS) ---
   useEffect(() => {
     const handleAlignCamera = (e: Event) => {
+      if (viewportSettingsRef.current.cameraViewId) return
       const view = (e as CustomEvent).detail.view
       const camera = cameraRef.current
       const controls = controlsRef.current
@@ -710,6 +1043,7 @@ export const Viewport: React.FC = () => {
     }
 
     const handleToggleOrtho = () => {
+      if (viewportSettingsRef.current.cameraViewId) return
       const camera = cameraRef.current
       const scene = sceneRef.current
       const renderer = rendererRef.current
@@ -734,21 +1068,22 @@ export const Viewport: React.FC = () => {
         orthoCamera.position.copy(camera.position)
         orthoCamera.rotation.copy(camera.rotation)
         
-        controls.object = orthoCamera
-        cameraRef.current = orthoCamera
+        editorCameraRef.current = orthoCamera
+        setActiveViewportCamera(orthoCamera)
       } else {
         // Switch back to perspective camera
         const perspCamera = new THREE.PerspectiveCamera(35, aspect, 0.1, 1000)
         perspCamera.position.copy(camera.position)
         perspCamera.rotation.copy(camera.rotation)
         
-        controls.object = perspCamera
-        cameraRef.current = perspCamera
+        editorCameraRef.current = perspCamera
+        setActiveViewportCamera(perspCamera)
       }
       controls.update()
     }
 
     const handleFocusCamera = () => {
+      if (viewportSettingsRef.current.cameraViewId) return
       const camera = cameraRef.current
       const controls = controlsRef.current
       if (!camera || !controls) return
@@ -762,6 +1097,9 @@ export const Viewport: React.FC = () => {
         
         controls.target.copy(center)
         camera.position.copy(center).add(new THREE.Vector3(4, 3, 5))
+        if (editorCameraRef.current === camera) {
+          editorCameraRef.current = camera
+        }
         controls.update()
       }
     }
@@ -848,7 +1186,7 @@ export const Viewport: React.FC = () => {
 
     // EDIT MODE: route to geometry selection
     if (mode === 'edit') {
-      handleEditModeSelection(e, mx, my, rect)
+      handleEditModeSelection(mx, my, rect)
       return
     }
 
@@ -1059,7 +1397,7 @@ export const Viewport: React.FC = () => {
   }
 
   // --- EDIT MODE SELECTION HANDLER ---
-  const handleEditModeSelection = (e: React.MouseEvent, mx: number, my: number, rect: DOMRect) => {
+  const handleEditModeSelection = (mx: number, my: number, rect: DOMRect) => {
     const scene = sceneRef.current
     const camera = cameraRef.current
     if (!scene || !camera) return
@@ -1304,6 +1642,30 @@ export const Viewport: React.FC = () => {
     setExtrudeValue(0)
   }
 
+  // --- RENDER IMAGE HANDLER ---
+  useEffect(() => {
+    const handleRenderImage = () => {
+      const renderer = rendererRef.current
+      const scene = sceneRef.current
+      const activeCamera = cameraRef.current
+      if (!renderer || !scene || !activeCamera) return
+
+      renderer.render(scene, activeCamera)
+      const dataUrl = renderer.domElement.toDataURL('image/png')
+      const createdAt = Date.now()
+
+      setLastRenderPreview({ dataUrl, createdAt })
+
+      const link = document.createElement('a')
+      link.href = dataUrl
+      link.download = `la-blender-render-${createdAt}.png`
+      link.click()
+    }
+
+    window.addEventListener('render-image', handleRenderImage)
+    return () => window.removeEventListener('render-image', handleRenderImage)
+  }, [setLastRenderPreview])
+
   // --- SCENE EXPORT HANDLER ---
   useEffect(() => {
     const handleExport = () => {
@@ -1444,6 +1806,10 @@ export const Viewport: React.FC = () => {
     window.addEventListener('import-file', handleImport)
     return () => window.removeEventListener('import-file', handleImport)
   }, [addObject])
+
+  const activeCameraView = viewportSettings.cameraViewId
+    ? objects.find((obj) => obj.id === viewportSettings.cameraViewId && obj.type === 'camera')
+    : null
 
   return (
     <div className="flex-grow h-full flex flex-col relative overflow-hidden bg-bg-deep select-none">
@@ -1598,12 +1964,12 @@ export const Viewport: React.FC = () => {
       >
         {/* Top-left Overlay text */}
         <div className="absolute top-3 left-3 pointer-events-none text-text-dim text-[11px] font-mono select-none">
-          User Perspective
+          {activeCameraView ? `${activeCameraView.name} View` : 'User Perspective'}
         </div>
 
         {/* Bottom-left Overlay text */}
         <div className="absolute bottom-3 left-3 pointer-events-none text-text-dim/80 text-[10px] font-mono select-none">
-          Perspective &middot; Scene
+          {activeCameraView ? 'Camera &middot; Scene' : 'Perspective &middot; Scene'}
         </div>
 
         {/* Bottom-right Coordinate Gizmo */}
@@ -1698,6 +2064,24 @@ export const Viewport: React.FC = () => {
             setAddMenuPos(null)
           }
 
+          const addCamera = () => {
+            addObject({
+              name: 'Camera',
+              type: 'camera',
+              visible: true,
+              locked: false,
+              position: [7, 6, 9],
+              rotation: [-0.5880026035475674, 0.5743692571486818, 0.3475049692541689],
+              scale: [1, 1, 1],
+              cameraConfig: {
+                fov: 35,
+                near: 0.1,
+                far: 1000,
+              }
+            })
+            setAddMenuPos(null)
+          }
+
           return (
             <div 
               style={{ left: adjustedX, top: adjustedY }}
@@ -1736,6 +2120,13 @@ export const Viewport: React.FC = () => {
                   <button onClick={() => addLight('spot', 'Spot Light')} className="px-3 py-1 text-left hover:bg-accent-orange hover:text-white w-full">Spot Light</button>
                 </div>
               </div>
+
+              <button
+                onClick={addCamera}
+                className="px-3 py-1 text-left hover:bg-accent-orange hover:text-white border-b border-border/20 pb-1 w-full"
+              >
+                Camera
+              </button>
 
               {/* Dismiss Option */}
               <button 
