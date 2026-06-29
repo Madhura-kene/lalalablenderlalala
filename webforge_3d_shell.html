@@ -1,0 +1,267 @@
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', sans-serif; font-size: 11px; background: #1a1a1a; color: #ccc; user-select: none; }
+.topbar { height: 28px; background: #1d1d1d; border-bottom: 1px solid #111; display: flex; align-items: center; padding: 0 8px; gap: 4px; }
+.topbar .logo { color: #e67e22; font-weight: 700; font-size: 12px; margin-right: 8px; letter-spacing: 0.5px; }
+.topbar .menu-item { padding: 2px 8px; border-radius: 3px; cursor: pointer; color: #bbb; font-size: 11px; }
+.topbar .menu-item:hover { background: #333; color: #fff; }
+.main { display: flex; height: calc(100vh - 28px); }
+.toolbar { width: 42px; background: #252525; border-right: 1px solid #111; display: flex; flex-direction: column; align-items: center; padding: 4px 0; gap: 1px; }
+.tool-btn { width: 34px; height: 32px; border-radius: 3px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #888; font-size: 16px; position: relative; }
+.tool-btn:hover { background: #333; color: #ccc; }
+.tool-btn.active { background: #4772b3; color: #fff; }
+.tool-sep { width: 28px; height: 1px; background: #3a3a3a; margin: 3px 0; }
+.tool-label { font-size: 9px; color: #666; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.center { flex: 1; display: flex; flex-direction: column; }
+.viewport-header { height: 26px; background: #252525; border-bottom: 1px solid #111; display: flex; align-items: center; padding: 0 8px; gap: 8px; }
+.vp-btn { padding: 2px 6px; border-radius: 3px; cursor: pointer; color: #888; font-size: 10px; display: flex; align-items: center; gap: 3px; }
+.vp-btn:hover { background: #333; color: #ccc; }
+.vp-btn.active { background: #3d3d3d; color: #ccc; }
+.shading-group { display: flex; gap: 1px; background: #111; border-radius: 4px; padding: 1px; margin-left: 4px; }
+.shade-btn { padding: 2px 7px; border-radius: 3px; font-size: 10px; cursor: pointer; color: #777; }
+.shade-btn:hover { color: #ccc; }
+.shade-btn.active { background: #4a4a4a; color: #ddd; }
+.viewport { flex: 1; background: #2a2a2a; position: relative; overflow: hidden; }
+.grid-bg { position: absolute; inset: 0; background-image: linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px); background-size: 40px 40px; background-position: center center; opacity: 0.4; }
+.grid-center-h { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #3a3a3a; }
+.grid-center-v { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: #3a3a3a; }
+.viewport-label { position: absolute; top: 8px; left: 10px; font-size: 10px; color: #555; }
+.gizmo { position: absolute; bottom: 16px; right: 16px; width: 60px; height: 60px; }
+.gizmo svg { width: 60px; height: 60px; }
+.cube-preview { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -60%); opacity: 0.15; }
+.cube-preview svg { width: 120px; height: 120px; }
+.persp-label { position: absolute; bottom: 8px; left: 10px; font-size: 10px; color: #555; }
+.overlay-btns { position: absolute; top: 0; right: 10px; display: flex; gap: 4px; align-items: center; height: 26px; }
+.right { width: 240px; background: #252525; border-left: 1px solid #111; display: flex; flex-direction: column; }
+.outliner { height: 180px; border-bottom: 1px solid #111; display: flex; flex-direction: column; }
+.panel-header { height: 24px; background: #1d1d1d; display: flex; align-items: center; padding: 0 8px; gap: 6px; font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #111; }
+.panel-header i { font-size: 13px; }
+.outliner-list { flex: 1; overflow-y: auto; padding: 2px 0; }
+.outliner-item { height: 22px; display: flex; align-items: center; padding: 0 8px; gap: 6px; cursor: pointer; }
+.outliner-item:hover { background: #2e2e2e; }
+.outliner-item.active { background: #1a3a5c; }
+.outliner-item i { font-size: 13px; color: #777; }
+.outliner-item.active i { color: #4772b3; }
+.item-name { flex: 1; font-size: 11px; }
+.item-actions { display: flex; gap: 2px; opacity: 0; }
+.outliner-item:hover .item-actions { opacity: 1; }
+.item-actions i { font-size: 12px; color: #666; }
+.item-actions i:hover { color: #ccc; }
+.properties { flex: 1; overflow-y: auto; }
+.prop-tabs { display: flex; background: #1d1d1d; border-bottom: 1px solid #111; overflow-x: auto; }
+.prop-tab { width: 30px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #666; border-bottom: 2px solid transparent; flex-shrink: 0; }
+.prop-tab:hover { color: #aaa; background: #2a2a2a; }
+.prop-tab.active { color: #e67e22; border-bottom-color: #e67e22; background: #252525; }
+.prop-tab i { font-size: 14px; }
+.prop-section { padding: 6px 0; border-bottom: 1px solid #2a2a2a; }
+.prop-section-header { padding: 3px 8px; font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.prop-section-header i { font-size: 11px; color: #666; }
+.prop-row { display: flex; align-items: center; padding: 2px 8px; gap: 4px; height: 22px; }
+.prop-label { width: 70px; font-size: 10px; color: #888; flex-shrink: 0; }
+.prop-inputs { display: flex; gap: 2px; flex: 1; }
+.prop-input { flex: 1; background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 3px; color: #ccc; font-size: 10px; padding: 1px 4px; height: 18px; text-align: center; font-family: 'JetBrains Mono', monospace; outline: none; }
+.prop-input:focus { border-color: #4772b3; }
+.prop-input.x { border-color: #aa3333; }
+.prop-input.y { border-color: #2a7a2a; }
+.prop-input.z { border-color: #2244aa; }
+.color-row { display: flex; align-items: center; padding: 2px 8px; gap: 6px; height: 22px; }
+.color-swatch { width: 18px; height: 18px; border-radius: 3px; border: 1px solid #444; cursor: pointer; }
+.prop-slider-row { display: flex; align-items: center; padding: 2px 8px; gap: 6px; height: 22px; }
+.prop-slider { flex: 1; height: 4px; background: #1a1a1a; border-radius: 2px; border: 1px solid #3a3a3a; appearance: none; outline: none; cursor: pointer; }
+.prop-slider::-webkit-slider-thumb { appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #ccc; }
+.prop-val { width: 32px; font-size: 10px; color: #aaa; text-align: right; font-family: monospace; }
+</style>
+
+<div style="height: 480px; display: flex; flex-direction: column; background: #1a1a1a; color: #ccc; font-family: 'Inter', sans-serif; font-size: 11px; overflow: hidden;">
+
+  <div class="topbar">
+    <span class="logo">⬡ WebForge</span>
+    <div style="width: 1px; height: 14px; background: #333; margin: 0 2px;"></div>
+    <span class="menu-item">File</span>
+    <span class="menu-item">Edit</span>
+    <span class="menu-item">Render</span>
+    <span class="menu-item">Object</span>
+    <span class="menu-item">Help</span>
+    <div style="flex:1"></div>
+    <span style="font-size:10px; color:#555;">WebForge 3D &nbsp;·&nbsp; v0.1</span>
+  </div>
+
+  <div class="main">
+
+    <div class="toolbar">
+      <div class="tool-btn active" title="Select"><i class="ti ti-cursor-text" aria-hidden="true"></i></div>
+      <div class="tool-sep"></div>
+      <div class="tool-btn" title="Move"><i class="ti ti-arrows-move" aria-hidden="true"></i></div>
+      <div class="tool-btn" title="Rotate"><i class="ti ti-rotate-clockwise" aria-hidden="true"></i></div>
+      <div class="tool-btn" title="Scale"><i class="ti ti-maximize" aria-hidden="true"></i></div>
+      <div class="tool-sep"></div>
+      <div class="tool-btn" title="Extrude"><i class="ti ti-square-plus" aria-hidden="true"></i></div>
+      <div class="tool-btn" title="Bevel"><i class="ti ti-vector-bezier-2" aria-hidden="true"></i></div>
+      <div class="tool-sep"></div>
+      <div class="tool-btn" title="Add Object"><i class="ti ti-plus" aria-hidden="true"></i></div>
+      <div style="flex:1"></div>
+      <div class="tool-btn" title="Settings"><i class="ti ti-settings" aria-hidden="true"></i></div>
+    </div>
+
+    <div class="center">
+      <div class="viewport-header">
+        <span style="font-size:10px; color:#777; font-weight:600;">View</span>
+        <div style="width:1px; height:12px; background:#3a3a3a;"></div>
+        <div class="shading-group">
+          <span class="shade-btn active">Solid</span>
+          <span class="shade-btn">Wire</span>
+          <span class="shade-btn">Material</span>
+        </div>
+        <div style="flex:1"></div>
+        <div class="vp-btn"><i class="ti ti-eye" style="font-size:12px" aria-hidden="true"></i> Overlays</div>
+        <div class="vp-btn"><i class="ti ti-axis-x" style="font-size:12px" aria-hidden="true"></i> Gizmo</div>
+      </div>
+
+      <div class="viewport">
+        <div class="grid-bg"></div>
+        <div class="grid-center-h"></div>
+        <div class="grid-center-v"></div>
+        <span class="viewport-label">User Perspective</span>
+        <span class="persp-label">Perspective &nbsp;·&nbsp; Scene</span>
+
+        <div class="cube-preview">
+          <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="60,20 100,40 100,80 60,100 20,80 20,40" stroke="#888" stroke-width="1.5" fill="#3a3a3a" opacity="0.6"/>
+            <polygon points="60,20 100,40 60,60 20,40" stroke="#aaa" stroke-width="1" fill="#505050" opacity="0.8"/>
+            <polygon points="20,40 60,60 60,100 20,80" stroke="#777" stroke-width="1" fill="#3d3d3d" opacity="0.7"/>
+            <polygon points="100,40 60,60 60,100 100,80" stroke="#999" stroke-width="1" fill="#454545" opacity="0.7"/>
+            <line x1="60" y1="20" x2="60" y2="60" stroke="#e67e22" stroke-width="1" opacity="0.8"/>
+            <circle cx="60" cy="60" r="3" fill="#e67e22" opacity="0.9"/>
+          </svg>
+        </div>
+
+        <div class="gizmo">
+          <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="30" cy="30" r="28" fill="#2a2a2a" stroke="#3a3a3a" stroke-width="1"/>
+            <line x1="30" y1="30" x2="50" y2="30" stroke="#aa3333" stroke-width="2"/>
+            <circle cx="52" cy="30" r="5" fill="#aa3333"/>
+            <text x="50" y="33" font-size="6" fill="#fff" text-anchor="middle">X</text>
+            <line x1="30" y1="30" x2="30" y2="10" stroke="#2a7a2a" stroke-width="2"/>
+            <circle cx="30" cy="8" r="5" fill="#2a7a2a"/>
+            <text x="30" y="11" font-size="6" fill="#fff" text-anchor="middle">Y</text>
+            <line x1="30" y1="30" x2="14" y2="44" stroke="#2244aa" stroke-width="2"/>
+            <circle cx="12" cy="46" r="5" fill="#2244aa"/>
+            <text x="12" y="49" font-size="6" fill="#fff" text-anchor="middle">Z</text>
+          </svg>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="outliner">
+        <div class="panel-header"><i class="ti ti-list-tree" aria-hidden="true"></i> Outliner</div>
+        <div class="outliner-list">
+          <div class="outliner-item active">
+            <i class="ti ti-cube" aria-hidden="true"></i>
+            <span class="item-name">Cube</span>
+            <div class="item-actions">
+              <i class="ti ti-eye" aria-hidden="true"></i>
+              <i class="ti ti-lock" aria-hidden="true"></i>
+            </div>
+          </div>
+          <div class="outliner-item">
+            <i class="ti ti-sun" aria-hidden="true"></i>
+            <span class="item-name">Sun Light</span>
+            <div class="item-actions">
+              <i class="ti ti-eye" aria-hidden="true"></i>
+              <i class="ti ti-lock" aria-hidden="true"></i>
+            </div>
+          </div>
+          <div class="outliner-item">
+            <i class="ti ti-sun" aria-hidden="true"></i>
+            <span class="item-name" style="color:#666;">Point Light</span>
+            <div class="item-actions">
+              <i class="ti ti-eye-off" style="color:#555;" aria-hidden="true"></i>
+              <i class="ti ti-lock" aria-hidden="true"></i>
+            </div>
+          </div>
+          <div class="outliner-item">
+            <i class="ti ti-camera" aria-hidden="true"></i>
+            <span class="item-name">Camera</span>
+            <div class="item-actions">
+              <i class="ti ti-eye" aria-hidden="true"></i>
+              <i class="ti ti-lock" aria-hidden="true"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="properties">
+        <div class="prop-tabs">
+          <div class="prop-tab active" title="Item"><i class="ti ti-cursor-text" aria-hidden="true"></i></div>
+          <div class="prop-tab" title="Object"><i class="ti ti-cube" aria-hidden="true"></i></div>
+          <div class="prop-tab" title="Material"><i class="ti ti-palette" aria-hidden="true"></i></div>
+          <div class="prop-tab" title="Light"><i class="ti ti-bulb" aria-hidden="true"></i></div>
+          <div class="prop-tab" title="Scene"><i class="ti ti-world" aria-hidden="true"></i></div>
+          <div class="prop-tab" title="Output"><i class="ti ti-camera" aria-hidden="true"></i></div>
+        </div>
+
+        <div class="prop-section">
+          <div class="prop-section-header"><i class="ti ti-chevron-down" aria-hidden="true"></i> Transform</div>
+          <div class="prop-row">
+            <span class="prop-label">Location</span>
+            <div class="prop-inputs">
+              <input class="prop-input x" value="0.000" />
+              <input class="prop-input y" value="0.000" />
+              <input class="prop-input z" value="0.000" />
+            </div>
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Rotation</span>
+            <div class="prop-inputs">
+              <input class="prop-input x" value="0.0°" />
+              <input class="prop-input y" value="0.0°" />
+              <input class="prop-input z" value="0.0°" />
+            </div>
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Scale</span>
+            <div class="prop-inputs">
+              <input class="prop-input x" value="1.000" />
+              <input class="prop-input y" value="1.000" />
+              <input class="prop-input z" value="1.000" />
+            </div>
+          </div>
+        </div>
+
+        <div class="prop-section">
+          <div class="prop-section-header"><i class="ti ti-chevron-down" aria-hidden="true"></i> Material</div>
+          <div class="color-row">
+            <span class="prop-label">Base Color</span>
+            <div class="color-swatch" style="background: #7c9cbf;"></div>
+            <span style="font-size:10px; color:#888; font-family:monospace;">#7C9CBF</span>
+          </div>
+          <div class="prop-slider-row">
+            <span class="prop-label">Metalness</span>
+            <input type="range" class="prop-slider" min="0" max="100" value="0" />
+            <span class="prop-val">0.00</span>
+          </div>
+          <div class="prop-slider-row">
+            <span class="prop-label">Roughness</span>
+            <input type="range" class="prop-slider" min="0" max="100" value="50" />
+            <span class="prop-val">0.50</span>
+          </div>
+        </div>
+
+        <div class="prop-section">
+          <div class="prop-section-header"><i class="ti ti-chevron-down" aria-hidden="true"></i> Visibility</div>
+          <div class="prop-row" style="gap:8px;">
+            <span class="prop-label">Viewport</span>
+            <div style="width:28px; height:14px; background:#4772b3; border-radius:7px; position:relative; cursor:pointer;">
+              <div style="width:10px; height:10px; background:#fff; border-radius:50%; position:absolute; right:2px; top:2px;"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
