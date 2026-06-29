@@ -77,7 +77,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onExport, onImport }) => {
         {/* Logo */}
         <span className="font-bold text-accent-orange flex items-center gap-1.5 mr-4 text-xs select-none">
           <Hexagon size={13} className="text-accent-orange fill-accent-orange/10 stroke-[2.5px]" />
-          WebForge
+          La Blender
         </span>
 
         {/* File Menu */}
